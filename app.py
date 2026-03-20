@@ -781,7 +781,7 @@ def circle_content(n):
 
 st.markdown(f"""
 <div class="sb-hero">
-  <div class="sb-eyebrow">Powered by Claude AI</div>
+  <div class="sb-eyebrow"> AI Powered</div>
   <h1>Personalised Learning,<br/><em>Built for Every Hire</em></h1>
   <p>Upload a resume and job description — our AI maps the exact skills gap and builds a custom training pathway.</p>
   <div class="sb-stepbar">
