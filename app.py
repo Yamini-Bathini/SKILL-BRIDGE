@@ -781,7 +781,7 @@ def circle_content(n):
 
 st.markdown(f"""
 <div class="sb-hero">
-  <div class="sb-eyebrow">Powered by Claude AI</div>
+  <div class="sb-eyebrow">AI Powered</div>
   <h1>Personalised Learning,<br/><em>Built for Every Hire</em></h1>
   <p>Upload a resume and job description — our AI maps the exact skills gap and builds a custom training pathway.</p>
   <div class="sb-stepbar">
@@ -824,43 +824,6 @@ with mid:
     # ══════════════════════════════════════════════════════
     if step == 1:
 
-        # ── Extract files FIRST before any rendering ───────
-        # Streamlit reruns top-to-bottom on every interaction.
-        # File uploaders must be created early so their values
-        # are available before the text areas render below.
-        col_r, col_j = st.columns(2)
-        with col_r:
-            resume_file = st.file_uploader(
-                "Resume", type=["pdf", "txt", "docx"], key="resume_upload"
-            )
-        with col_j:
-            jd_file = st.file_uploader(
-                "Job Description", type=["pdf", "txt", "docx"], key="jd_upload"
-            )
-
-        # Process resume file into session state immediately
-        resume_error = None
-        if resume_file:
-            # Only re-extract if the file changed (avoids re-reading on every rerun)
-            if st.session_state.get("resume_file_name") != resume_file.name:
-                extracted = utils.extract_text_from_file(resume_file)
-                if extracted.startswith("[ERROR:"):
-                    resume_error = extracted.replace("[ERROR: ", "").rstrip("]")
-                elif extracted.strip():
-                    st.session_state.resume_text = extracted
-                    st.session_state.resume_file_name = resume_file.name
-
-        # Process JD file into session state immediately
-        jd_error = None
-        if jd_file:
-            if st.session_state.get("jd_file_name") != jd_file.name:
-                extracted = utils.extract_text_from_file(jd_file)
-                if extracted.startswith("[ERROR:"):
-                    jd_error = extracted.replace("[ERROR: ", "").rstrip("]")
-                elif extracted.strip():
-                    st.session_state.jd_text = extracted
-                    st.session_state.jd_file_name = jd_file.name
-
         # ── Card header ─────────────────────────────────────
         st.markdown("""
         <div class="sb-card">
@@ -874,69 +837,81 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
-        # ── Upload zone status displays ─────────────────────
-        col_r2, col_j2 = st.columns(2)
-        with col_r2:
-            if resume_file and not resume_error:
-                st.markdown(f"""
-                <div class="sb-upload loaded">
-                  <div class="sb-upload-icon">📋</div>
-                  <h3>Candidate Resume</h3>
-                  <div class="fname">📎 {resume_file.name}</div>
-                  <div class="badge">Loaded ✓</div>
-                </div>""", unsafe_allow_html=True)
-            elif resume_file and resume_error:
-                st.warning(f"⚠️ {resume_error} — paste text below.")
-                st.markdown(f"""
-                <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
-                  <div class="sb-upload-icon">⚠️</div>
-                  <h3>Candidate Resume</h3>
-                  <div class="fname" style="color:var(--amb);">Paste text in the box below</div>
-                </div>""", unsafe_allow_html=True)
+        # ── File uploaders (inside card visually via columns) ─
+        col_r, col_j = st.columns(2)
+        with col_r:
+            st.markdown('<span class="sb-lbl">Candidate Resume</span>', unsafe_allow_html=True)
+            resume_file = st.file_uploader(
+                "Resume", type=["pdf", "txt", "docx"],
+                key="resume_upload", label_visibility="collapsed"
+            )
+        with col_j:
+            st.markdown('<span class="sb-lbl">Job Description</span>', unsafe_allow_html=True)
+            jd_file = st.file_uploader(
+                "Job Description", type=["pdf", "txt", "docx"],
+                key="jd_upload", label_visibility="collapsed"
+            )
+
+        # ── Extract text from files ──────────────────────────
+        # Use getvalue() (reads all bytes, safe on Streamlit Cloud)
+        # Only extract when file name changes to avoid re-reading on every rerun
+        if resume_file is not None:
+            if st.session_state.get("resume_file_name") != resume_file.name:
+                try:
+                    import io as _io
+                    raw = resume_file.getvalue()          # bytes — works on Cloud
+                    # Temporarily wrap in a mock file object for utils
+                    class _MockFile:
+                        def __init__(self, name, data):
+                            self.name = name
+                            self._data = data
+                        def read(self):
+                            return self._data
+                    extracted = utils.extract_text_from_file(_MockFile(resume_file.name, raw))
+                    if extracted.startswith("[ERROR:"):
+                        st.warning(f"⚠️ Could not read resume PDF — please paste text below. ({extracted})")
+                    elif extracted.strip():
+                        st.session_state.resume_text = extracted
+                        st.session_state.resume_file_name = resume_file.name
+                        st.success(f"✓ Resume loaded: {resume_file.name}")
+                except Exception as e:
+                    st.warning(f"⚠️ Could not read file: {e} — please paste text below.")
             else:
-                st.markdown("""
-                <div class="sb-upload">
-                  <div class="sb-upload-icon">📋</div>
-                  <h3>Candidate Resume</h3>
-                  <p>PDF, TXT, or DOCX · Max 10 MB</p>
-                </div>""", unsafe_allow_html=True)
+                st.success(f"✓ Resume loaded: {resume_file.name}")
 
-        with col_j2:
-            if jd_file and not jd_error:
-                st.markdown(f"""
-                <div class="sb-upload loaded">
-                  <div class="sb-upload-icon">💼</div>
-                  <h3>Job Description</h3>
-                  <div class="fname">📎 {jd_file.name}</div>
-                  <div class="badge">Loaded ✓</div>
-                </div>""", unsafe_allow_html=True)
-            elif jd_file and jd_error:
-                st.warning(f"⚠️ {jd_error} — paste text below.")
-                st.markdown(f"""
-                <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
-                  <div class="sb-upload-icon">⚠️</div>
-                  <h3>Job Description</h3>
-                  <div class="fname" style="color:var(--amb);">Paste text in the box below</div>
-                </div>""", unsafe_allow_html=True)
+        if jd_file is not None:
+            if st.session_state.get("jd_file_name") != jd_file.name:
+                try:
+                    raw = jd_file.getvalue()
+                    class _MockFile:
+                        def __init__(self, name, data):
+                            self.name = name
+                            self._data = data
+                        def read(self):
+                            return self._data
+                    extracted = utils.extract_text_from_file(_MockFile(jd_file.name, raw))
+                    if extracted.startswith("[ERROR:"):
+                        st.warning(f"⚠️ Could not read JD PDF — please paste text below. ({extracted})")
+                    elif extracted.strip():
+                        st.session_state.jd_text = extracted
+                        st.session_state.jd_file_name = jd_file.name
+                        st.success(f"✓ Job description loaded: {jd_file.name}")
+                except Exception as e:
+                    st.warning(f"⚠️ Could not read file: {e} — please paste text below.")
             else:
-                st.markdown("""
-                <div class="sb-upload">
-                  <div class="sb-upload-icon">💼</div>
-                  <h3>Job Description</h3>
-                  <p>PDF, TXT, or DOCX · Max 10 MB</p>
-                </div>""", unsafe_allow_html=True)
+                st.success(f"✓ Job description loaded: {jd_file.name}")
 
-        st.markdown('<div class="sb-or"><div class="sb-or-line"></div><span class="sb-or-txt">or paste text</span><div class="sb-or-line"></div></div>', unsafe_allow_html=True)
+        # ── OR divider ───────────────────────────────────────
+        st.markdown('<div class="sb-or"><div class="sb-or-line"></div><span class="sb-or-txt">or paste text directly</span><div class="sb-or-line"></div></div>', unsafe_allow_html=True)
 
-        # ── Text areas — now always show session_state which ─
-        # ── was already populated above by file extraction   ─
+        # ── Text areas ───────────────────────────────────────
         col_rt, col_jt = st.columns(2)
         with col_rt:
             st.markdown('<span class="sb-lbl">Resume Text</span>', unsafe_allow_html=True)
             resume_txt = st.text_area(
                 "resume_text_area",
                 value=st.session_state.resume_text,
-                height=160,
+                height=180,
                 placeholder="Paste resume content here…",
                 key="resume_ta",
                 label_visibility="collapsed",
@@ -948,13 +923,14 @@ with mid:
             jd_txt = st.text_area(
                 "jd_text_area",
                 value=st.session_state.jd_text,
-                height=160,
+                height=180,
                 placeholder="Paste job description here…",
                 key="jd_ta",
                 label_visibility="collapsed",
             )
             st.session_state.jd_text = jd_txt
 
+        # ── Buttons ──────────────────────────────────────────
         st.markdown("<br/>", unsafe_allow_html=True)
         btn_c1, btn_c2, _ = st.columns([2, 2, 6])
         with btn_c1:
@@ -1378,7 +1354,4 @@ st.markdown("""
   <div class="sb-footer-live">
     <div class="sb-footer-dot"></div>
     SkillBridge v1.0 — AI Adaptive Onboarding Engine
-  </div>
-  <div>Hackathon Demo · Claude AI</div>
-</div>
 """, unsafe_allow_html=True)
