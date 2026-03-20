@@ -853,12 +853,7 @@ with mid:
             )
 
         # ── Extract text from files ──────────────────────────
-        # getvalue() is safe on Streamlit Cloud (no pointer issues).
-        # When a NEW file is detected, extract → store in session_state
-        # → delete the textarea widget key so it re-renders with new value.
-
         def _extract(file_obj):
-            """Extract bytes via getvalue() and run through utils."""
             raw = file_obj.getvalue()
             class _F:
                 def __init__(self, name, data):
@@ -872,57 +867,45 @@ with mid:
             if st.session_state.get("resume_file_name") != resume_file.name:
                 extracted = _extract(resume_file)
                 if extracted.startswith("[ERROR:"):
-                    st.warning(f"⚠️ Could not extract resume text — please paste manually below.")
+                    st.warning("⚠️ Could not extract resume text — please paste manually below.")
                 elif extracted.strip():
                     st.session_state.resume_text      = extracted
                     st.session_state.resume_file_name = resume_file.name
-                    # Delete the textarea widget key so Streamlit re-renders
-                    # it fresh with the new value= on next run
-                    if "resume_ta" in st.session_state:
-                        del st.session_state["resume_ta"]
-                    st.rerun()   # immediate rerun to repopulate textarea
             st.success(f"✓ Resume loaded: {resume_file.name}")
 
         if jd_file is not None:
             if st.session_state.get("jd_file_name") != jd_file.name:
                 extracted = _extract(jd_file)
                 if extracted.startswith("[ERROR:"):
-                    st.warning(f"⚠️ Could not extract job description text — please paste manually below.")
+                    st.warning("⚠️ Could not extract job description — please paste manually below.")
                 elif extracted.strip():
                     st.session_state.jd_text      = extracted
                     st.session_state.jd_file_name = jd_file.name
-                    if "jd_ta" in st.session_state:
-                        del st.session_state["jd_ta"]
-                    st.rerun()
             st.success(f"✓ Job description loaded: {jd_file.name}")
 
         # ── OR divider ───────────────────────────────────────
         st.markdown('<div class="sb-or"><div class="sb-or-line"></div><span class="sb-or-txt">or paste text directly</span><div class="sb-or-line"></div></div>', unsafe_allow_html=True)
 
-        # ── Text areas ───────────────────────────────────────
-        # value= is respected on first render after key deletion above.
+        # ── Text areas — NO key= so value= is always respected ──
         col_rt, col_jt = st.columns(2)
         with col_rt:
             st.markdown('<span class="sb-lbl">Resume Text</span>', unsafe_allow_html=True)
             resume_txt = st.text_area(
-                "resume_text_area",
+                "Resume Text",
                 value=st.session_state.resume_text,
                 height=180,
                 placeholder="Paste resume content here…",
-                key="resume_ta",
                 label_visibility="collapsed",
             )
-            # Sync manual edits back to session_state
             st.session_state.resume_text = resume_txt
 
         with col_jt:
             st.markdown('<span class="sb-lbl">Job Description Text</span>', unsafe_allow_html=True)
             jd_txt = st.text_area(
-                "jd_text_area",
+                "Job Description Text",
                 value=st.session_state.jd_text,
                 height=180,
                 placeholder="Paste job description here…",
-                key="jd_ta",
                 label_visibility="collapsed",
             )
             st.session_state.jd_text = jd_txt
@@ -932,16 +915,10 @@ with mid:
         btn_c1, btn_c2, _ = st.columns([2, 2, 6])
         with btn_c1:
             if st.button("✨ Sample Data", key="btn_sample", use_container_width=True):
-                # Clear textarea keys so they re-render with sample values
-                for k in ["resume_ta", "jd_ta"]:
-                    if k in st.session_state:
-                        del st.session_state[k]
                 load_sample()
                 st.rerun()
         with btn_c2:
             if st.button("Continue →", key="btn_step1_next", use_container_width=True):
-                # Read directly from session_state — not from widget return value
-                # This is reliable on both local and Cloud
                 resume_val = st.session_state.resume_text.strip()
                 jd_val     = st.session_state.jd_text.strip()
                 if not resume_val and not jd_val:
@@ -1357,7 +1334,4 @@ st.markdown("""
   <div class="sb-footer-live">
     <div class="sb-footer-dot"></div>
     SkillBridge v1.0 — AI Adaptive Onboarding Engine
-  </div>
-  <div>Hackathon Demo · Claude AI</div>
-</div>
 """, unsafe_allow_html=True)
