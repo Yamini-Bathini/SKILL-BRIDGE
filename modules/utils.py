@@ -52,17 +52,6 @@ def extract_text_from_file(uploaded_file) -> str:
         except Exception:
             pass
 
-        # Try PyMuPDF as second fallback
-        try:
-            import fitz
-            doc = fitz.open(stream=raw_bytes, filetype="pdf")
-            pages = [page.get_text() for page in doc]
-            text = "\n".join(pages).strip()
-            if text:
-                return text
-        except Exception:
-            pass
-
         return (
             "[ERROR: Could not extract text from this PDF. "
             "It may be image-based (scanned) or corrupted. "
