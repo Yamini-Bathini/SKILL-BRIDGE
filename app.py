@@ -823,6 +823,45 @@ with mid:
     #  STEP 1 — UPLOAD
     # ══════════════════════════════════════════════════════
     if step == 1:
+
+        # ── Extract files FIRST before any rendering ───────
+        # Streamlit reruns top-to-bottom on every interaction.
+        # File uploaders must be created early so their values
+        # are available before the text areas render below.
+        col_r, col_j = st.columns(2)
+        with col_r:
+            resume_file = st.file_uploader(
+                "Resume", type=["pdf", "txt", "docx"], key="resume_upload"
+            )
+        with col_j:
+            jd_file = st.file_uploader(
+                "Job Description", type=["pdf", "txt", "docx"], key="jd_upload"
+            )
+
+        # Process resume file into session state immediately
+        resume_error = None
+        if resume_file:
+            # Only re-extract if the file changed (avoids re-reading on every rerun)
+            if st.session_state.get("resume_file_name") != resume_file.name:
+                extracted = utils.extract_text_from_file(resume_file)
+                if extracted.startswith("[ERROR:"):
+                    resume_error = extracted.replace("[ERROR: ", "").rstrip("]")
+                elif extracted.strip():
+                    st.session_state.resume_text = extracted
+                    st.session_state.resume_file_name = resume_file.name
+
+        # Process JD file into session state immediately
+        jd_error = None
+        if jd_file:
+            if st.session_state.get("jd_file_name") != jd_file.name:
+                extracted = utils.extract_text_from_file(jd_file)
+                if extracted.startswith("[ERROR:"):
+                    jd_error = extracted.replace("[ERROR: ", "").rstrip("]")
+                elif extracted.strip():
+                    st.session_state.jd_text = extracted
+                    st.session_state.jd_file_name = jd_file.name
+
+        # ── Card header ─────────────────────────────────────
         st.markdown("""
         <div class="sb-card">
           <div class="sb-card-hd">
@@ -835,34 +874,25 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
-        # File uploaders
-        col_r, col_j = st.columns(2)
-        with col_r:
-            resume_file = st.file_uploader(
-                "Resume", type=["pdf", "txt", "docx"], key="resume_upload"
-            )
-            if resume_file:
-                extracted = utils.extract_text_from_file(resume_file)
-                is_error = extracted.startswith("[ERROR:")
-                if not is_error and extracted.strip():
-                    st.session_state.resume_text = extracted
-                    st.session_state.resume_file_name = resume_file.name
-                    st.markdown(f"""
-                    <div class="sb-upload loaded">
-                      <div class="sb-upload-icon">📋</div>
-                      <h3>Candidate Resume</h3>
-                      <div class="fname">📎 {resume_file.name}</div>
-                      <div class="badge">Loaded ✓</div>
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    err_msg = extracted if is_error else "[ERROR: File was empty]"
-                    st.warning(f"⚠️ {err_msg.replace('[ERROR: ','').rstrip(']')} — please paste text below.")
-                    st.markdown(f"""
-                    <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
-                      <div class="sb-upload-icon">⚠️</div>
-                      <h3>Candidate Resume</h3>
-                      <div class="fname" style="color:var(--amb);">📎 {resume_file.name} — paste text below</div>
-                    </div>""", unsafe_allow_html=True)
+        # ── Upload zone status displays ─────────────────────
+        col_r2, col_j2 = st.columns(2)
+        with col_r2:
+            if resume_file and not resume_error:
+                st.markdown(f"""
+                <div class="sb-upload loaded">
+                  <div class="sb-upload-icon">📋</div>
+                  <h3>Candidate Resume</h3>
+                  <div class="fname">📎 {resume_file.name}</div>
+                  <div class="badge">Loaded ✓</div>
+                </div>""", unsafe_allow_html=True)
+            elif resume_file and resume_error:
+                st.warning(f"⚠️ {resume_error} — paste text below.")
+                st.markdown(f"""
+                <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
+                  <div class="sb-upload-icon">⚠️</div>
+                  <h3>Candidate Resume</h3>
+                  <div class="fname" style="color:var(--amb);">Paste text in the box below</div>
+                </div>""", unsafe_allow_html=True)
             else:
                 st.markdown("""
                 <div class="sb-upload">
@@ -871,32 +901,23 @@ with mid:
                   <p>PDF, TXT, or DOCX · Max 10 MB</p>
                 </div>""", unsafe_allow_html=True)
 
-        with col_j:
-            jd_file = st.file_uploader(
-                "Job Description", type=["pdf", "txt", "docx"], key="jd_upload"
-            )
-            if jd_file:
-                extracted = utils.extract_text_from_file(jd_file)
-                is_error = extracted.startswith("[ERROR:")
-                if not is_error and extracted.strip():
-                    st.session_state.jd_text = extracted
-                    st.session_state.jd_file_name = jd_file.name
-                    st.markdown(f"""
-                    <div class="sb-upload loaded">
-                      <div class="sb-upload-icon">💼</div>
-                      <h3>Job Description</h3>
-                      <div class="fname">📎 {jd_file.name}</div>
-                      <div class="badge">Loaded ✓</div>
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    err_msg = extracted if is_error else "[ERROR: File was empty]"
-                    st.warning(f"⚠️ {err_msg.replace('[ERROR: ','').rstrip(']')} — please paste text below.")
-                    st.markdown(f"""
-                    <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
-                      <div class="sb-upload-icon">⚠️</div>
-                      <h3>Job Description</h3>
-                      <div class="fname" style="color:var(--amb);">📎 {jd_file.name} — paste text below</div>
-                    </div>""", unsafe_allow_html=True)
+        with col_j2:
+            if jd_file and not jd_error:
+                st.markdown(f"""
+                <div class="sb-upload loaded">
+                  <div class="sb-upload-icon">💼</div>
+                  <h3>Job Description</h3>
+                  <div class="fname">📎 {jd_file.name}</div>
+                  <div class="badge">Loaded ✓</div>
+                </div>""", unsafe_allow_html=True)
+            elif jd_file and jd_error:
+                st.warning(f"⚠️ {jd_error} — paste text below.")
+                st.markdown(f"""
+                <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
+                  <div class="sb-upload-icon">⚠️</div>
+                  <h3>Job Description</h3>
+                  <div class="fname" style="color:var(--amb);">Paste text in the box below</div>
+                </div>""", unsafe_allow_html=True)
             else:
                 st.markdown("""
                 <div class="sb-upload">
@@ -907,6 +928,8 @@ with mid:
 
         st.markdown('<div class="sb-or"><div class="sb-or-line"></div><span class="sb-or-txt">or paste text</span><div class="sb-or-line"></div></div>', unsafe_allow_html=True)
 
+        # ── Text areas — now always show session_state which ─
+        # ── was already populated above by file extraction   ─
         col_rt, col_jt = st.columns(2)
         with col_rt:
             st.markdown('<span class="sb-lbl">Resume Text</span>', unsafe_allow_html=True)
@@ -918,7 +941,6 @@ with mid:
                 key="resume_ta",
                 label_visibility="collapsed",
             )
-            # Always sync textarea → session state (covers both file load and manual paste)
             st.session_state.resume_text = resume_txt
 
         with col_jt:
