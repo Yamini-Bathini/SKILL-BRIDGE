@@ -2,8 +2,6 @@ import streamlit as st
 import json
 import requests
 import re
-import base64
-import time
 from modules import utils
 
 # ─────────────────────────────────────────────────────────
@@ -28,7 +26,7 @@ defaults = {
     "analysis_result": None,
     "api_key": "",
     "error_message": None,
-    "loading_tick": 0,
+    "show_reasoning": False,
     "config": {
         "industry": "Technology / Software",
         "seniority": "Mid-Level (2–5 years)",
@@ -48,6 +46,7 @@ for k, v in defaults.items():
 def go(step: int):
     st.session_state.step = step
     st.session_state.error_message = None
+
 
 def load_sample():
     st.session_state.resume_text = """Sarah Chen — Software Engineer
@@ -92,6 +91,7 @@ NICE TO HAVE
 • Terraform / infrastructure as code
 • Security best practices (OWASP)
 • Financial domain experience"""
+
 
 def fallback_data():
     return {
@@ -138,6 +138,7 @@ def fallback_data():
             "9 weeks at ~20 hrs/week. Capstone in week 9 acts as role-readiness gate."
         ),
     }
+
 
 def call_claude(api_key, resume, jd, cfg):
     system_prompt = """You are SkillBridge, a precise AI Onboarding Engine that performs STRICTLY GROUNDED skill-gap analysis.
@@ -276,6 +277,7 @@ Return ONLY this JSON (no extra text):
 
     return result
 
+
 def run_analysis():
     try:
         if st.session_state.api_key.strip():
@@ -295,8 +297,9 @@ def run_analysis():
         st.session_state.analysis_result = fallback_data()
     go(4)
 
+
 # ─────────────────────────────────────────────────────────
-#  GLOBAL CSS (FULL STYLESHEET)
+#  GLOBAL CSS
 # ─────────────────────────────────────────────────────────
 st.markdown("""
 <style>
@@ -778,7 +781,7 @@ def circle_content(n):
 
 st.markdown(f"""
 <div class="sb-hero">
-  <div class="sb-eyebrow">AI Powered</div>
+  <div class="sb-eyebrow">Powered by Claude AI</div>
   <h1>Personalised Learning,<br/><em>Built for Every Hire</em></h1>
   <p>Upload a resume and job description — our AI maps the exact skills gap and builds a custom training pathway.</p>
   <div class="sb-stepbar">
@@ -812,6 +815,7 @@ _, mid, _ = st.columns([1, 6, 1])
 
 with mid:
 
+    # ── ERROR BANNER ──────────────────────────────────────
     if st.session_state.error_message:
         st.info(st.session_state.error_message)
 
@@ -831,6 +835,7 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # File uploaders
         col_r, col_j = st.columns(2)
         with col_r:
             resume_file = st.file_uploader(
@@ -838,7 +843,8 @@ with mid:
             )
             if resume_file:
                 extracted = utils.extract_text_from_file(resume_file)
-                if extracted and not extracted.startswith("[Error") and not extracted.startswith("[Note"):
+                is_error = extracted.startswith("[ERROR:")
+                if not is_error and extracted.strip():
                     st.session_state.resume_text = extracted
                     st.session_state.resume_file_name = resume_file.name
                     st.markdown(f"""
@@ -849,13 +855,13 @@ with mid:
                       <div class="badge">Loaded ✓</div>
                     </div>""", unsafe_allow_html=True)
                 else:
-                    st.warning(f"Could not extract text from {resume_file.name}. Please paste text manually.")
+                    err_msg = extracted if is_error else "[ERROR: File was empty]"
+                    st.warning(f"⚠️ {err_msg.replace('[ERROR: ','').rstrip(']')} — please paste text below.")
                     st.markdown(f"""
-                    <div class="sb-upload loaded">
+                    <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
                       <div class="sb-upload-icon">⚠️</div>
                       <h3>Candidate Resume</h3>
-                      <div class="fname">📎 {resume_file.name}</div>
-                      <div class="badge" style="background:rgba(251,191,36,.15);color:var(--amb);">Extraction issue</div>
+                      <div class="fname" style="color:var(--amb);">📎 {resume_file.name} — paste text below</div>
                     </div>""", unsafe_allow_html=True)
             else:
                 st.markdown("""
@@ -871,7 +877,8 @@ with mid:
             )
             if jd_file:
                 extracted = utils.extract_text_from_file(jd_file)
-                if extracted and not extracted.startswith("[Error") and not extracted.startswith("[Note"):
+                is_error = extracted.startswith("[ERROR:")
+                if not is_error and extracted.strip():
                     st.session_state.jd_text = extracted
                     st.session_state.jd_file_name = jd_file.name
                     st.markdown(f"""
@@ -882,13 +889,13 @@ with mid:
                       <div class="badge">Loaded ✓</div>
                     </div>""", unsafe_allow_html=True)
                 else:
-                    st.warning(f"Could not extract text from {jd_file.name}. Please paste text manually.")
+                    err_msg = extracted if is_error else "[ERROR: File was empty]"
+                    st.warning(f"⚠️ {err_msg.replace('[ERROR: ','').rstrip(']')} — please paste text below.")
                     st.markdown(f"""
-                    <div class="sb-upload loaded">
+                    <div class="sb-upload" style="border-color:rgba(251,191,36,.4);">
                       <div class="sb-upload-icon">⚠️</div>
                       <h3>Job Description</h3>
-                      <div class="fname">📎 {jd_file.name}</div>
-                      <div class="badge" style="background:rgba(251,191,36,.15);color:var(--amb);">Extraction issue</div>
+                      <div class="fname" style="color:var(--amb);">📎 {jd_file.name} — paste text below</div>
                     </div>""", unsafe_allow_html=True)
             else:
                 st.markdown("""
@@ -911,7 +918,9 @@ with mid:
                 key="resume_ta",
                 label_visibility="collapsed",
             )
+            # Always sync textarea → session state (covers both file load and manual paste)
             st.session_state.resume_text = resume_txt
+
         with col_jt:
             st.markdown('<span class="sb-lbl">Job Description Text</span>', unsafe_allow_html=True)
             jd_txt = st.text_area(
@@ -932,8 +941,14 @@ with mid:
                 st.rerun()
         with btn_c2:
             if st.button("Continue →", key="btn_step1_next", use_container_width=True):
-                if not st.session_state.resume_text.strip() or not st.session_state.jd_text.strip():
-                    st.warning("Please provide both resume and job description.")
+                resume_val = st.session_state.resume_text.strip()
+                jd_val     = st.session_state.jd_text.strip()
+                if not resume_val and not jd_val:
+                    st.warning("Please provide both a resume and a job description — upload files or paste text.")
+                elif not resume_val:
+                    st.warning("Resume is missing — please upload a file or paste the text.")
+                elif not jd_val:
+                    st.warning("Job description is missing — please upload a file or paste the text.")
                 else:
                     go(2)
                     st.rerun()
@@ -1026,6 +1041,7 @@ with mid:
     #  STEP 3 — LOADING (animated steps + runs analysis)
     # ══════════════════════════════════════════════════════
     elif step == 3:
+
         loading_steps = [
             ("ls1", "Parsing resume & extracting skills"),
             ("ls2", "Analysing job description requirements"),
@@ -1035,12 +1051,14 @@ with mid:
             ("ls6", "Generating reasoning trace"),
         ]
 
+        # Determine which step to highlight based on a counter in session state
         if "loading_tick" not in st.session_state:
             st.session_state.loading_tick = 0
 
         tick = st.session_state.loading_tick
         active_idx = min(tick, len(loading_steps) - 1)
 
+        # ── CSS + card top (no variable injection) ──────────
         st.markdown("""
         <style>
           @keyframes orb-pulse {
@@ -1089,6 +1107,7 @@ with mid:
           <div style="padding:0 2rem 2rem;max-width:480px;margin:0 auto;width:100%;">
         """, unsafe_allow_html=True)
 
+        # ── Each step row rendered individually — no f-string ──
         for i, (_, label) in enumerate(loading_steps):
             if i < active_idx:
                 cls, icon = "ls-item ls-done",   "✓"
@@ -1101,19 +1120,23 @@ with mid:
                 unsafe_allow_html=True,
             )
 
+        # ── Close card ───────────────────────────────────────
         st.markdown("</div></div>", unsafe_allow_html=True)
 
+        # Advance the tick on each rerun to animate steps, then call API on last tick
         if tick < len(loading_steps) - 1:
             st.session_state.loading_tick += 1
+            import time
             time.sleep(0.55)
             st.rerun()
         else:
-            st.session_state.loading_tick = 0
+            # All steps shown — now run actual analysis
+            st.session_state.loading_tick = 0  # reset for next time
             run_analysis()
             st.rerun()
 
     # ══════════════════════════════════════════════════════
-    #  STEP 4 — RESULTS
+    #  STEP 4 — RESULTS  (all rendered via Streamlit widgets)
     # ══════════════════════════════════════════════════════
     elif step == 4:
         data = st.session_state.analysis_result
@@ -1122,6 +1145,7 @@ with mid:
             if st.button("🔄 New Analysis"): go(1); st.rerun()
             st.stop()
 
+        # ── Card header ──────────────────────────────────
         st.markdown(f"""
         <div class="sb-card">
           <div class="sb-card-hd">
@@ -1134,6 +1158,7 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Stats strip ───────────────────────────────────
         st.markdown(f"""
         <div class="sb-stats">
           <div class="sb-stat">
@@ -1155,6 +1180,7 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Readiness bar ─────────────────────────────────
         pct = data["overall_readiness"]
         st.markdown(f"""
         <div style="background:var(--s2);border:1px solid var(--b);
@@ -1171,6 +1197,7 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Skill gap section ─────────────────────────────
         have = data.get("skills_have", [])
         gaps = data.get("skills_gap", [])
         have_html = "".join(f'<div class="sb-stag have"><span>✓</span>{s}</div>' for s in have)
@@ -1189,6 +1216,7 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # ── Pathway modules (each rendered individually) ──
         st.markdown("""
         <div style="background:var(--s1);border:1px solid var(--b);
                     border-radius:var(--rx);padding:1.75rem;margin-bottom:1.1rem;">
@@ -1230,14 +1258,18 @@ with mid:
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)  # close pathway card
 
+        # ── Reasoning trace — native Streamlit expander ───
         with st.expander("🧠 AI Reasoning Trace — click to expand"):
             st.markdown(
                 f'<div style="font-size:13px;color:var(--txt2);line-height:1.8;white-space:pre-wrap;">'
                 f'{data.get("reasoning_trace","No trace available.")}</div>',
                 unsafe_allow_html=True,
             )
+
+        # ── Action row — all three as uniform HTML buttons ──
+        import base64, urllib.parse
 
         summary = (
             f"SkillBridge — Personalised Learning Pathway\n"
@@ -1256,6 +1288,7 @@ with mid:
         )
         json_str = json.dumps(data, indent=2)
 
+        # Encode as data URIs so <a href download> works without a server
         summary_b64 = base64.b64encode(summary.encode()).decode()
         json_b64    = base64.b64encode(json_str.encode()).decode()
 
@@ -1308,12 +1341,16 @@ with mid:
         </div>
         """, unsafe_allow_html=True)
 
+        # New Analysis — plain Streamlit button, no query_params needed
         st.markdown("<br/>", unsafe_allow_html=True)
         if st.button("🔄 New Analysis", key="btn_new", use_container_width=False):
             go(1)
             st.session_state.analysis_result = None
             st.rerun()
 
+# ─────────────────────────────────────────────────────────
+#  FOOTER
+# ─────────────────────────────────────────────────────────
 st.markdown("""
 <div class="sb-footer">
   <div class="sb-footer-live">
